@@ -1,0 +1,280 @@
+name: Reusable Angular Web CI
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: Short app name used in job labels and artifacts.
+        type: string
+        required: true
+      node_version:
+        description: Node.js version.
+        type: string
+        default: "24"
+      working_directory:
+        description: Directory where package.json is located.
+        type: string
+        default: .
+      coverage_threshold:
+        description: Minimum total line coverage percentage.
+        type: number
+        default: 80
+      run_coverage:
+        description: Run coverage analysis.
+        type: boolean
+        default: true
+      dockerfile_path:
+        description: Dockerfile path for build validation. Leave empty to skip.
+        type: string
+        default: ""
+      docker_context:
+        description: Docker build context.
+        type: string
+        default: .
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.app_name }}
+  cancel-in-progress: true
+
+jobs:
+  branch-name:
+    name: Branch policy
+    if: ${{ github.event_name == 'pull_request' }}
+    uses: group10-tc-01/fcg-pipelines/.github/workflows/branch-name-check.yml@main
+
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Gitleaks
+        shell: bash
+        run: |
+          GITLEAKS_VERSION="8.30.1"
+          mkdir -p "$HOME/.local/bin"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          install -m 0755 /tmp/gitleaks "$HOME/.local/bin/gitleaks"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          gitleaks version
+
+      - name: Scan repository
+        shell: bash
+        run: gitleaks dir . --redact --verbose --no-banner
+
+  dependency-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Check vulnerable packages
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          npm audit --audit-level=high --json > npm-audit-report.json || AUDIT_EXIT_CODE=$?
+          cat npm-audit-report.json
+          if [[ "${AUDIT_EXIT_CODE:-0}" != "0" ]]; then
+            echo "High or critical vulnerable package found."
+            exit "${AUDIT_EXIT_CODE}"
+          fi
+
+      - name: Upload vulnerability report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.app_name }}-npm-audit-report
+          path: ${{ inputs.working_directory }}/npm-audit-report.json
+          if-no-files-found: ignore
+
+  format-check:
+    name: Format check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Check formatting
+        working-directory: ${{ inputs.working_directory }}
+        run: npm run format:check
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Run lint
+        working-directory: ${{ inputs.working_directory }}
+        run: npm run lint
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: ${{ inputs.working_directory }}
+        run: npm run test:ci
+
+  coverage-analysis:
+    name: Coverage analysis
+    if: ${{ inputs.run_coverage }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Run coverage
+        working-directory: ${{ inputs.working_directory }}
+        run: npm run ng -- test --watch=false --coverage --coverage-reporters=cobertura --coverage-reporters=text-summary
+
+      - name: Enforce coverage threshold
+        working-directory: ${{ inputs.working_directory }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob
+          import os
+          import sys
+          import xml.etree.ElementTree as ET
+
+          threshold = float("${{ inputs.coverage_threshold }}")
+          candidates = [
+              "coverage/cobertura-coverage.xml",
+              "coverage/${{ inputs.app_name }}/cobertura-coverage.xml",
+              "coverage/cobertura.xml",
+              "coverage/Cobertura.xml",
+          ]
+          candidates.extend(glob.glob("coverage/**/cobertura-coverage.xml", recursive=True))
+          report = next((path for path in candidates if os.path.exists(path)), None)
+
+          if report is None:
+              print("Coverage report was not generated.")
+              sys.exit(1)
+
+          root = ET.parse(report).getroot()
+          rate = float(root.attrib.get("line-rate", "0")) * 100
+          print(f"Total line coverage: {rate:.2f}%")
+          if rate < threshold:
+              print(f"Coverage is below threshold: {threshold:.2f}%")
+              sys.exit(1)
+          PY
+
+      - name: Upload coverage report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.app_name }}-coverage-report
+          path: ${{ inputs.working_directory }}/coverage
+          if-no-files-found: ignore
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working_directory }}/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: npm ci
+
+      - name: Build
+        working-directory: ${{ inputs.working_directory }}
+        run: npm run build
+
+  docker-build-validation:
+    name: Docker build validation
+    if: ${{ inputs.dockerfile_path != '' }}
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image without push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.docker_context }}
+          file: ${{ inputs.dockerfile_path }}
+          push: false
+          tags: ${{ inputs.app_name }}:ci-${{ github.sha }}

@@ -1,35 +1,81 @@
-# FCG Pipelines
+# fcg-pipelines
 
-Workflows reutilizáveis do GitHub Actions para os serviços da FIAP Cloud Games.
+Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária**. Centraliza workflows do GitHub Actions para CI, validações de segurança, build de imagens, delivery em AKS e automação de infraestrutura.
 
-Este repositório centraliza a automação de CI/CD para que cada serviço mantenha
-apenas um workflow simples com as variáveis específicas da aplicação. O objetivo
-é deixar o modelo de entrega mais fácil de manter, auditável e alinhado aos
-requisitos da Fase 4: entrega cloud-native, imagens de container, verificações
-de segurança, deploy em AKS e promoção opcional via GitOps.
+> Repositório de apoio que compõe a arquitetura da Conexão Solidária junto a `fcg-identity`, `fcg-campaigns`, `fcg-donations`, `fcg-donation-worker`, `fcg-audit-logs`, `fcg-solidarity-web` e `fcg-solidarity-infra`.
 
-## Workflows
+---
+
+## Responsabilidades
+
+- Padronizar os gates de CI/CD entre os repositórios da plataforma.
+- Expor workflows reutilizáveis via `workflow_call`.
+- Validar política de nomes de branch.
+- Executar secret scan com Gitleaks.
+- Executar análise de vulnerabilidades em dependências.
+- Executar build, testes, cobertura e SonarCloud para serviços .NET.
+- Executar formatação, lint, testes, cobertura e build para aplicações Angular.
+- Validar build de imagens Docker.
+- Publicar imagens no Azure Container Registry e executar deploy no AKS quando habilitado.
+- Executar workflows de Terraform para infraestrutura Azure.
+
+Este repositório **não** contém código de aplicação. Cada aplicação mantém apenas wrappers pequenos em `.github/workflows` apontando para os workflows reutilizáveis daqui.
+
+Documentação completa da arquitetura: [group10-tc-01/fcg-fase05-docs](https://github.com/group10-tc-01/fcg-fase05-docs).
+
+Referências diretas:
+
+- [Visão geral da arquitetura](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/architecture/overview.md)
+- [Repositórios e infraestrutura](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/architecture/repositories-and-infra.md)
+- [ADR 0022 - Reutilizar fcg-pipelines para CI/CD](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/adr/0022-reuse-fcg-pipelines-for-ci-cd.md)
+
+---
+
+## Workflows reutilizáveis
 
 | Workflow                                        | Finalidade                                                                                                                 |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `.github/workflows/branch-name-check.yml`       | Política reutilizável para validação do nome das branches.                                                                 |
 | `.github/workflows/dotnet-service-ci.yml`       | Build, testes, cobertura, análise de dependências, secret scan, SonarCloud e validação de build Docker para serviços .NET. |
 | `.github/workflows/dotnet-service-delivery.yml` | Build, scan, push da imagem Docker para o Azure Container Registry e deploy no AKS com rolling update.                     |
+| `.github/workflows/angular-web-ci.yml`          | CI para aplicações Angular com npm audit, formatação, lint, testes, cobertura, build e validação de build Docker.          |
 | `.github/workflows/gitops-image-update.yml`     | Atualização de tags de imagem em um repositório GitOps para que Argo CD ou Flux faça a reconciliação do cluster.           |
 | `.github/workflows/terraform-azure.yml`         | Execução de plan e, opcionalmente, apply da infraestrutura Azure com Terraform usando OIDC.                                |
 
-## Estrutura recomendada nos serviços
+---
 
-Cada repositório de serviço deve manter apenas wrappers pequenos de workflow,
-por exemplo:
+## Estrutura do repositório
 
-Como este repositório é privado, o acesso do GitHub Actions precisa permitir que
-os repositórios de serviço da organização `group10-tc-01` consumam os workflows
-reutilizáveis daqui. Configure isso nas configurações do repositório ou da
-organização antes de substituir os workflows existentes dos serviços.
+```text
+.github/
+  workflows/
+    angular-web-ci.yml
+    branch-name-check.yml
+    dotnet-service-ci.yml
+    dotnet-service-delivery.yml
+    gitops-image-update.yml
+    terraform-azure.yml
+docs/
+  adoption-guide.md
+  required-secrets-and-vars.md
+examples/
+  catalog/
+  catalog-ci.yml
+  catalog-delivery.yml
+  orchestration-terraform.yml
+  solidarity-web-ci.yml
+```
+
+---
+
+## Adoção em aplicações
+
+Cada repositório de aplicação deve manter wrappers pequenos em `.github/workflows`.
+
+### Serviço .NET
 
 ```yaml
-name: Catalog CI
+name: Identity CI
 
 on:
   pull_request:
@@ -41,43 +87,79 @@ jobs:
   ci:
     uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-ci.yml@main
     with:
-      service_name: catalog
-      solution_path: FCG.Catalog.sln
-      unit_tests_path: tests/FCG.Catalog.UnitTests/FCG.Catalog.UnitTests.csproj
-      integration_tests_path: tests/FCG.Catalog.IntegratedTests/FCG.Catalog.IntegratedTests.csproj
-      dockerfile_path: src/FCG.Catalog.WebApi/Dockerfile
-      sonar_project_key: group10-tc-01_fcg-catalog
+      service_name: identity
+      dotnet_version: 8.0.x
+      solution_path: Fcg.Identity.slnx
+      unit_tests_path: tests/Fcg.Identity.UnitTests/Fcg.Identity.UnitTests.csproj
+      coverage_threshold: 80
+      run_sonar: true
+      sonar_project_key: group10-tc-01_fcg-identity
       sonar_organization: group10-tc-01
+      dockerfile_path: src/Fcg.Identity.WebApi/Dockerfile
+      docker_context: .
     secrets: inherit
 ```
 
-## Estratégia de entrega
+### Aplicação Angular
 
-Dois modelos de deploy são suportados:
+```yaml
+name: Solidarity Web Branch Policy
 
-1. Rollout direto no AKS: faz build da imagem, envia para o ACR, atualiza o
-   deployment no Kubernetes e aguarda o status do rollout.
-2. Promoção via GitOps: faz build e push da imagem no repositório do serviço e,
-   em seguida, atualiza a tag da imagem no `fcg-orchestration`. Argo CD ou Flux
-   aplica a mudança no cluster.
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
 
-Para o pitch da Fase 4, o rollout direto no AKS é a forma mais rápida de
-demonstrar um live deploy. Para o longo prazo, GitOps é o modelo mais
-profissional, porque o estado de produção fica declarado no repositório de
-orquestração.
+jobs:
+  branch-name:
+    uses: group10-tc-01/fcg-pipelines/.github/workflows/branch-name-check.yml@main
+    with:
+      allowed_pattern: ^(feature|fix|bugfix|hotfix|release|chore|docs|refactor|test)\/[a-z0-9._-]+$
+      allow_main: false
+```
 
-## Base de segurança
+```yaml
+name: Solidarity Web CI
 
-Os workflows evitam credenciais hardcoded e esperam que os segredos venham de
-GitHub Environments, credenciais federadas do Azure, Kubernetes Secrets, Azure
-Key Vault ou outro cofre de segredos gerenciado.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 
-Consulte `docs/required-secrets-and-vars.md` para ver a configuração necessária.
+jobs:
+  ci:
+    uses: group10-tc-01/fcg-pipelines/.github/workflows/angular-web-ci.yml@main
+    with:
+      app_name: fcg-solidarity-web
+      node_version: "24"
+      working_directory: .
+      coverage_threshold: 80
+      run_coverage: true
+      dockerfile_path: Dockerfile
+      docker_context: .
+```
 
-## Adoção
+---
 
-Use `docs/adoption-guide.md` e os arquivos em `examples/` como ponto de partida
-para cada repositório de serviço.
+## Segurança
 
-Para um exemplo completo e alinhado aos caminhos reais do Catalog, consulte
-`examples/catalog/`.
+- Segredos não devem ser versionados nos repositórios de aplicação nem neste repositório.
+- Secret scan é executado com Gitleaks.
+- Dependências .NET são verificadas com `dotnet list package --vulnerable`.
+- Dependências Angular são verificadas com `npm audit --audit-level=high`.
+- Imagens Docker são escaneadas com Trivy nos fluxos de delivery.
+- Credenciais Azure devem usar OIDC ou secrets protegidos por GitHub Environments.
+
+Consulte [docs/required-secrets-and-vars.md](docs/required-secrets-and-vars.md) para o contrato de secrets e variáveis.
+
+---
+
+## Guia de adoção
+
+O passo a passo completo está em [docs/adoption-guide.md](docs/adoption-guide.md).
+
+Exemplos úteis:
+
+- [examples/catalog/](examples/catalog/)
+- [examples/solidarity-web-ci.yml](examples/solidarity-web-ci.yml)
