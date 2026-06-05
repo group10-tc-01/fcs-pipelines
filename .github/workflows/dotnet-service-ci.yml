@@ -1,3 +1,4 @@
+# repos renamed: fcg -> fcs
 name: Reusable .NET Service CI
 
 on:
