@@ -15,7 +15,7 @@ on:
 
 jobs:
   terraform:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/terraform-azure.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/terraform-azure.yml@main
     with:
       working_directory: terraform
       environment: production

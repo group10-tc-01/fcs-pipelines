@@ -8,16 +8,16 @@ on:
 
 jobs:
   ci:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-ci.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/dotnet-service-ci.yml@main
     with:
       service_name: users
-      solution_path: FCG.Users.sln
-      unit_tests_path: tests/FCG.Users.UnitTests/FCG.Users.UnitTests.csproj
-      integration_tests_path: tests/FCG.Users.IntegratedTests/FCG.Users.IntegratedTests.csproj
-      functional_tests_path: tests/FCG.Users.FunctionalTests/FCG.Users.FunctionalTests.csproj
-      dockerfile_path: src/FCG.Users.WebApi/Dockerfile
+      solution_path: fcs.Users.sln
+      unit_tests_path: tests/fcs.Users.UnitTests/fcs.Users.UnitTests.csproj
+      integration_tests_path: tests/fcs.Users.IntegratedTests/fcs.Users.IntegratedTests.csproj
+      functional_tests_path: tests/fcs.Users.FunctionalTests/fcs.Users.FunctionalTests.csproj
+      dockerfile_path: src/fcs.Users.WebApi/Dockerfile
       docker_context: .
-      sonar_project_key: group10-tc-01_fcg-users
+      sonar_project_key: group10-tc-01_fcs-users
       sonar_organization: group10-tc-01
       coverage_threshold: 80
     secrets: inherit

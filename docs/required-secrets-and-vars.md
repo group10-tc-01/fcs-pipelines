@@ -17,10 +17,10 @@ secrets globais no repositório para produção sempre que possível.
 
 | Nome                            | Exemplo         | Finalidade                    |
 | ------------------------------- | --------------- | ----------------------------- |
-| `AZURE_CONTAINER_REGISTRY_NAME` | `fcgregistry`   | Nome do ACR sem `azurecr.io`. |
-| `AKS_RESOURCE_GROUP`            | `rg-fcg-prod`   | Resource group do AKS.        |
-| `AKS_CLUSTER_NAME`              | `aks-fcg-prod`  | Nome do cluster AKS.          |
-| `K8S_NAMESPACE`                 | `fcg`           | Namespace do Kubernetes.      |
+| `AZURE_CONTAINER_REGISTRY_NAME` | `Fcsregistry`   | Nome do ACR sem `azurecr.io`. |
+| `AKS_RESOURCE_GROUP`            | `rg-fcs-prod`   | Resource group do AKS.        |
+| `AKS_CLUSTER_NAME`              | `aks-fcs-prod`  | Nome do cluster AKS.          |
+| `K8S_NAMESPACE`                 | `fcs`           | Namespace do Kubernetes.      |
 | `SONAR_ORGANIZATION`            | `group10-tc-01` | Organização do SonarCloud.    |
 
 ## Segredos da aplicação em runtime

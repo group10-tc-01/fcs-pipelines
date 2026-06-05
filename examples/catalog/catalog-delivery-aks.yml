@@ -14,18 +14,18 @@ permissions:
 jobs:
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-delivery.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/dotnet-service-delivery.yml@main
     with:
       service_name: catalog
-      image_name: fcg-catalog
-      dockerfile_path: src/FCG.Catalog.WebApi/Dockerfile
+      image_name: fcs-catalog
+      dockerfile_path: src/fcs.Catalog.WebApi/Dockerfile
       docker_context: .
       azure_container_registry_name: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
       aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
       aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
-      k8s_namespace: fcg-system
-      k8s_deployment_name: fcg-catalog
-      k8s_container_name: fcg-catalog
+      k8s_namespace: fcs-system
+      k8s_deployment_name: fcs-catalog
+      k8s_container_name: fcs-catalog
       k8s_manifests_path: ""
       environment: production
       healthcheck_url: ${{ vars.CATALOG_HEALTHCHECK_URL }}

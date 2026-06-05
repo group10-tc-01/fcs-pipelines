@@ -8,15 +8,15 @@ on:
 
 jobs:
   ci:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-ci.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/dotnet-service-ci.yml@main
     with:
       service_name: catalog
-      solution_path: FCG.Catalog.sln
-      unit_tests_path: tests/FCG.Catalog.UnitTests/FCG.Catalog.UnitTests.csproj
-      integration_tests_path: tests/FCG.Catalog.IntegratedTests/FCG.Catalog.IntegratedTests.csproj
-      dockerfile_path: src/FCG.Catalog.WebApi/Dockerfile
+      solution_path: fcs.Catalog.sln
+      unit_tests_path: tests/fcs.Catalog.UnitTests/fcs.Catalog.UnitTests.csproj
+      integration_tests_path: tests/fcs.Catalog.IntegratedTests/fcs.Catalog.IntegratedTests.csproj
+      dockerfile_path: src/fcs.Catalog.WebApi/Dockerfile
       docker_context: .
-      sonar_project_key: group10-tc-01_fcg-catalog
+      sonar_project_key: group10-tc-01_fcs-catalog
       sonar_organization: group10-tc-01
       coverage_threshold: 80
     secrets: inherit

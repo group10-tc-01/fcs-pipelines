@@ -8,7 +8,7 @@ on:
         type: string
         required: true
       gitops_repository:
-        description: Repository that stores Kubernetes manifests, for example group10-tc-01/fcg-orchestration.
+        description: Repository that stores Kubernetes manifests, for example group10-tc-01/fcs-orchestration.
         type: string
         required: true
       gitops_ref:

@@ -46,7 +46,7 @@ jobs:
   branch-name:
     name: Branch policy
     if: ${{ github.event_name == 'pull_request' }}
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/branch-name-check.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/branch-name-check.yml@main
 
   secret-scan:
     name: Secret scan

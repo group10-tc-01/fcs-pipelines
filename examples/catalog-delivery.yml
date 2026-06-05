@@ -7,11 +7,11 @@ on:
 
 jobs:
   deploy:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-delivery.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/dotnet-service-delivery.yml@main
     with:
       service_name: catalog
-      image_name: fcg/catalog-api
-      dockerfile_path: src/FCG.Catalog.WebApi/Dockerfile
+      image_name: fcs/catalog-api
+      dockerfile_path: src/fcs.Catalog.WebApi/Dockerfile
       docker_context: .
       azure_container_registry_name: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
       aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}

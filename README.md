@@ -1,8 +1,8 @@
-# fcg-pipelines
+# fcs-pipelines
 
 Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária**. Centraliza workflows do GitHub Actions para CI, validações de segurança, build de imagens, delivery em AKS e automação de infraestrutura.
 
-> Repositório de apoio que compõe a arquitetura da Conexão Solidária junto a `fcg-identity`, `fcg-campaigns`, `fcg-donations`, `fcg-donation-worker`, `fcg-audit-logs`, `fcg-solidarity-web` e `fcg-solidarity-infra`.
+> Repositório de apoio que compõe a arquitetura da Conexão Solidária junto a `fcs-identity`, `fcs-campaigns`, `fcs-donations`, `fcs-donation-worker`, `fcs-audit-logs`, `fcs-solidarity-web` e `fcs-solidarity-infra`.
 
 ---
 
@@ -21,13 +21,13 @@ Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária
 
 Este repositório **não** contém código de aplicação. Cada aplicação mantém apenas wrappers pequenos em `.github/workflows` apontando para os workflows reutilizáveis daqui.
 
-Documentação completa da arquitetura: [group10-tc-01/fcg-fase05-docs](https://github.com/group10-tc-01/fcg-fase05-docs).
+Documentação completa da arquitetura: [group10-tc-01/fcs-fase05-docs](https://github.com/group10-tc-01/fcs-fase05-docs).
 
 Referências diretas:
 
-- [Visão geral da arquitetura](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/architecture/overview.md)
-- [Repositórios e infraestrutura](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/architecture/repositories-and-infra.md)
-- [ADR 0022 - Reutilizar fcg-pipelines para CI/CD](https://github.com/group10-tc-01/fcg-fase05-docs/blob/main/adr/0022-reuse-fcg-pipelines-for-ci-cd.md)
+- [Visão geral da arquitetura](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/architecture/overview.md)
+- [Repositórios e infraestrutura](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/architecture/repositories-and-infra.md)
+- [ADR 0022 - Reutilizar fcs-pipelines para CI/CD](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0022-reuse-fcs-pipelines-for-ci-cd.md)
 
 ---
 
@@ -85,17 +85,17 @@ on:
 
 jobs:
   ci:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/dotnet-service-ci.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/dotnet-service-ci.yml@main
     with:
       service_name: identity
       dotnet_version: 8.0.x
-      solution_path: Fcg.Identity.slnx
-      unit_tests_path: tests/Fcg.Identity.UnitTests/Fcg.Identity.UnitTests.csproj
+      solution_path: fcs.Identity.slnx
+      unit_tests_path: tests/fcs.Identity.UnitTests/fcs.Identity.UnitTests.csproj
       coverage_threshold: 80
       run_sonar: true
-      sonar_project_key: group10-tc-01_fcg-identity
+      sonar_project_key: group10-tc-01_fcs-identity
       sonar_organization: group10-tc-01
-      dockerfile_path: src/Fcg.Identity.WebApi/Dockerfile
+      dockerfile_path: src/fcs.Identity.WebApi/Dockerfile
       docker_context: .
     secrets: inherit
 ```
@@ -112,7 +112,7 @@ on:
 
 jobs:
   branch-name:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/branch-name-check.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/branch-name-check.yml@main
     with:
       allowed_pattern: ^(feature|fix|bugfix|hotfix|release|chore|docs|refactor|test)\/[a-z0-9._-]+$
       allow_main: false
@@ -129,9 +129,9 @@ on:
 
 jobs:
   ci:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/angular-web-ci.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/angular-web-ci.yml@main
     with:
-      app_name: fcg-solidarity-web
+      app_name: fcs-solidarity-web
       node_version: "24"
       working_directory: .
       coverage_threshold: 80

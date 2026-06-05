@@ -1,12 +1,12 @@
 # Exemplo Real: Catalog
 
-Esta pasta mostra como o `fcg-catalog` pode consumir todos os workflows
-reutilizáveis do `fcg-pipelines` com valores alinhados aos caminhos reais do
+Esta pasta mostra como o `fcs-catalog` pode consumir todos os workflows
+reutilizáveis do `fcs-pipelines` com valores alinhados aos caminhos reais do
 serviço.
 
-## Arquivos para o `fcg-catalog`
+## Arquivos para o `fcs-catalog`
 
-Copie estes arquivos para `.github/workflows/` no repositório `fcg-catalog`:
+Copie estes arquivos para `.github/workflows/` no repositório `fcs-catalog`:
 
 | Arquivo                           | Reusable utilizado            | Objetivo                                                                                                         |
 | --------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -15,9 +15,9 @@ Copie estes arquivos para `.github/workflows/` no repositório `fcg-catalog`:
 | `catalog-delivery-aks.yml`        | `dotnet-service-delivery.yml` | Faz build, scan, push da imagem no ACR e deploy direto no AKS com rolling update.                                |
 | `catalog-gitops-image-update.yml` | `gitops-image-update.yml`     | Promove uma imagem já publicada atualizando o repositório GitOps.                                                |
 
-## Arquivos para o `fcg-orchestration`
+## Arquivos para o `fcs-orchestration`
 
-Copie estes arquivos para o repositório `fcg-orchestration`:
+Copie estes arquivos para o repositório `fcs-orchestration`:
 
 | Arquivo                                              | Destino sugerido                                     | Objetivo                                                                     |
 | ---------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------- |
@@ -43,6 +43,6 @@ Configure as seguintes variáveis:
 
 ## Observação sobre repositório privado
 
-Como `fcg-pipelines` é privado, habilite o acesso dos repositórios da
+Como `fcs-pipelines` é privado, habilite o acesso dos repositórios da
 organização para consumir workflows reutilizáveis deste repositório antes de
 substituir os workflows atuais.

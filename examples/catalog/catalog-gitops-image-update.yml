@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       image_uri:
-        description: Full image URI to promote, for example fiapcr.azurecr.io/fcg-catalog:sha-abc1234.
+        description: Full image URI to promote, for example fiapcr.azurecr.io/fcs-catalog:sha-abc1234.
         required: true
         type: string
 
@@ -13,12 +13,12 @@ permissions:
 
 jobs:
   promote:
-    uses: group10-tc-01/fcg-pipelines/.github/workflows/gitops-image-update.yml@main
+    uses: group10-tc-01/fcs-pipelines/.github/workflows/gitops-image-update.yml@main
     with:
       service_name: catalog
-      gitops_repository: group10-tc-01/fcg-orchestration
+      gitops_repository: group10-tc-01/fcs-orchestration
       gitops_ref: main
       working_directory: k8s/overlays/production/catalog
-      image_name: fiapcr.azurecr.io/fcg-catalog
+      image_name: fiapcr.azurecr.io/fcs-catalog
       image_uri: ${{ inputs.image_uri }}
     secrets: inherit

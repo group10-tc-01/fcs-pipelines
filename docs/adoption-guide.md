@@ -6,9 +6,9 @@ Este guia mostra como adotar o repositório central de pipelines nos repositóri
 
 Cada aplicação deve manter apenas arquivos simples em `.github/workflows/*.yml`. A implementação real fica neste repositório e é referenciada com `uses:`.
 
-Como o `fcg-pipelines` é privado, habilite o acesso para os repositórios da organização antes da adoção:
+Como o `fcs-pipelines` é privado, habilite o acesso para os repositórios da organização antes da adoção:
 
-- Configurações do repositório `fcg-pipelines`
+- Configurações do repositório `fcs-pipelines`
 - Actions
 - General
 - Access
