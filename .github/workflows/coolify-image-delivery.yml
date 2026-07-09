@@ -1,0 +1,278 @@
+name: Reusable Coolify Image Delivery
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: Short application name used in job labels.
+        type: string
+        required: true
+      main_branch:
+        description: Main branch name.
+        type: string
+        default: main
+      source_ref:
+        description: Optional commit SHA or ref to build. Useful with workflow_run triggers.
+        type: string
+        default: ""
+      dockerfile_path:
+        description: Dockerfile path.
+        type: string
+        required: true
+      docker_context:
+        description: Docker build context.
+        type: string
+        default: .
+      docker_target:
+        description: Optional Docker build target.
+        type: string
+        default: ""
+      docker_build_args:
+        description: Optional Docker build args, one per line.
+        type: string
+        default: ""
+      docker_platforms:
+        description: Docker platforms.
+        type: string
+        default: linux/amd64
+      image_registry:
+        description: Container registry host.
+        type: string
+        default: ghcr.io
+      image_owner:
+        description: Image owner/namespace. Defaults to repository owner.
+        type: string
+        default: ""
+      image_name:
+        description: Image name. Defaults to app_name.
+        type: string
+        default: ""
+      image_tag_prefix:
+        description: Prefix used before the short SHA tag.
+        type: string
+        default: sha-
+      publish_main_tag:
+        description: Also publish the main branch tag.
+        type: boolean
+        default: false
+      image_extra_tags:
+        description: Additional tags to publish, one per line.
+        type: string
+        default: ""
+      run_trivy_scan:
+        description: Scan pushed image with Trivy before deploying.
+        type: boolean
+        default: true
+      trivy_severity:
+        description: Vulnerability severity levels that fail the image scan.
+        type: string
+        default: CRITICAL,HIGH
+      trivy_ignore_unfixed:
+        description: Ignore unfixed vulnerabilities in Trivy.
+        type: boolean
+        default: true
+      coolify_update_image:
+        description: Patch the Coolify resource so it points to the immutable image tag.
+        type: boolean
+        default: true
+      coolify_base_url:
+        description: Coolify base URL. Required when coolify_update_endpoint is relative or empty.
+        type: string
+        default: ""
+      coolify_resource_uuid:
+        description: Coolify application UUID. Used when coolify_update_endpoint is empty.
+        type: string
+        default: ""
+      coolify_update_endpoint:
+        description: Absolute URL or /api/v1 path used to PATCH the Coolify resource.
+        type: string
+        default: ""
+      coolify_update_method:
+        description: HTTP method used to update the Coolify resource.
+        type: string
+        default: PATCH
+      coolify_image_payload:
+        description: JSON payload template. __IMAGE_URI__, __IMAGE_TAG__, and __IMAGE_NAME__ are replaced before the request.
+        type: string
+        default: '{"docker_registry_image_name":"__IMAGE_URI__"}'
+      coolify_trigger_deploy:
+        description: Trigger Coolify deployment after updating the image.
+        type: boolean
+        default: true
+      coolify_deploy_method:
+        description: HTTP method used for the deploy webhook.
+        type: string
+        default: GET
+      coolify_deploy_webhook_query:
+        description: Optional query string appended to COOLIFY_WEBHOOK.
+        type: string
+        default: ""
+      coolify_skip_tls_verify:
+        description: Pass --insecure to curl for self-signed Coolify certificates.
+        type: boolean
+        default: false
+    secrets:
+      REGISTRY_USERNAME:
+        required: false
+      REGISTRY_TOKEN:
+        required: false
+      COOLIFY_TOKEN:
+        required: false
+      COOLIFY_WEBHOOK:
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: coolify-${{ inputs.app_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-scan-push:
+    name: Build, scan, and push image
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.meta.outputs.image_uri }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      image_name: ${{ steps.meta.outputs.image_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Login to registry
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+        run: |
+          if [[ "${{ inputs.image_registry }}" == "ghcr.io" ]]; then
+            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            exit 0
+          fi
+          if [[ -z "$REGISTRY_USERNAME" || -z "$REGISTRY_TOKEN" ]]; then
+            echo "REGISTRY_USERNAME and REGISTRY_TOKEN are required for registry ${{ inputs.image_registry }}."
+            exit 1
+          fi
+          echo "$REGISTRY_TOKEN" | docker login "${{ inputs.image_registry }}" -u "$REGISTRY_USERNAME" --password-stdin
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Resolve image metadata
+        id: meta
+        shell: bash
+        run: |
+          REGISTRY="${{ inputs.image_registry }}"
+          OWNER="${{ inputs.image_owner }}"
+          NAME="${{ inputs.image_name }}"
+          SHORT_SHA="$(git rev-parse --short=7 HEAD)"
+          if [[ -z "$OWNER" ]]; then OWNER="$GITHUB_REPOSITORY_OWNER"; fi
+          if [[ -z "$NAME" ]]; then NAME="${{ inputs.app_name }}"; fi
+          OWNER="${OWNER,,}"
+          NAME="${NAME,,}"
+          IMAGE="${REGISTRY}/${OWNER}/${NAME}"
+          SHA_TAG="${{ inputs.image_tag_prefix }}${SHORT_SHA}"
+          {
+            echo "image_uri=${IMAGE}:${SHA_TAG}"
+            echo "image_tag=${SHA_TAG}"
+            echo "image_name=${IMAGE}"
+            echo "tags<<EOF"
+            echo "${IMAGE}:${SHA_TAG}"
+            if [[ "${{ inputs.publish_main_tag }}" == "true" && "${GITHUB_REF_NAME}" == "${{ inputs.main_branch }}" ]]; then echo "${IMAGE}:${{ inputs.main_branch }}"; fi
+            while IFS= read -r extra_tag; do [[ -z "$extra_tag" ]] && continue; echo "${IMAGE}:${extra_tag}"; done <<< "${{ inputs.image_extra_tags }}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.docker_context }}
+          file: ${{ inputs.dockerfile_path }}
+          target: ${{ inputs.docker_target }}
+          build-args: ${{ inputs.docker_build_args }}
+          platforms: ${{ inputs.docker_platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+
+      - name: Scan image
+        if: ${{ inputs.run_trivy_scan }}
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.meta.outputs.image_uri }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: ${{ inputs.trivy_ignore_unfixed }}
+          vuln-type: os,library
+          severity: ${{ inputs.trivy_severity }}
+
+  deploy-coolify:
+    name: Update Coolify and deploy
+    needs: build-scan-push
+    if: ${{ inputs.coolify_update_image || inputs.coolify_trigger_deploy }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate Coolify credentials
+        shell: bash
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+        run: |
+          [[ -n "$COOLIFY_TOKEN" ]] || { echo "COOLIFY_TOKEN is required."; exit 1; }
+          if [[ "${{ inputs.coolify_trigger_deploy }}" == "true" && -z "$COOLIFY_WEBHOOK" ]]; then echo "COOLIFY_WEBHOOK is required when deployment is enabled."; exit 1; fi
+
+      - name: Build Coolify update payload
+        if: ${{ inputs.coolify_update_image }}
+        shell: bash
+        env:
+          IMAGE_URI: ${{ needs.build-scan-push.outputs.image_uri }}
+          IMAGE_TAG: ${{ needs.build-scan-push.outputs.image_tag }}
+          IMAGE_NAME: ${{ needs.build-scan-push.outputs.image_name }}
+          PAYLOAD_TEMPLATE: ${{ inputs.coolify_image_payload }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          body = os.environ["PAYLOAD_TEMPLATE"]
+          for key in ("IMAGE_URI", "IMAGE_TAG", "IMAGE_NAME"):
+              body = body.replace(f"__{key}__", os.environ[key])
+          json.loads(body)
+          Path("coolify-payload.json").write_text(body, encoding="utf-8")
+          PY
+
+      - name: Update Coolify image reference
+        if: ${{ inputs.coolify_update_image }}
+        shell: bash
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          BASE_URL="${{ inputs.coolify_base_url }}"
+          ENDPOINT="${{ inputs.coolify_update_endpoint }}"
+          if [[ -z "$ENDPOINT" ]]; then
+            [[ -n "${{ inputs.coolify_resource_uuid }}" ]] || { echo "coolify_resource_uuid or coolify_update_endpoint is required."; exit 1; }
+            ENDPOINT="/api/v1/applications/${{ inputs.coolify_resource_uuid }}"
+          fi
+          if [[ "$ENDPOINT" =~ ^https?:// ]]; then URL="$ENDPOINT"; else [[ -n "$BASE_URL" ]] || { echo "coolify_base_url is required."; exit 1; }; URL="${BASE_URL%/}/${ENDPOINT#/}"; fi
+          CURL_ARGS=(-fsS --connect-timeout 20 --max-time 180 --retry 4 --retry-delay 5 --retry-all-errors --request "${{ inputs.coolify_update_method }}")
+          if [[ "${{ inputs.coolify_skip_tls_verify }}" == "true" ]]; then CURL_ARGS+=(--insecure); fi
+          curl "${CURL_ARGS[@]}" "$URL" --header "Authorization: Bearer ${COOLIFY_TOKEN}" --header "Content-Type: application/json" --data @coolify-payload.json
+
+      - name: Trigger Coolify deploy
+        if: ${{ inputs.coolify_trigger_deploy }}
+        shell: bash
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+        run: |
+          URL="$COOLIFY_WEBHOOK"
+          if [[ -n "${{ inputs.coolify_deploy_webhook_query }}" ]]; then
+            if [[ "$URL" == *\?* ]]; then URL="${URL}&${{ inputs.coolify_deploy_webhook_query }}"; else URL="${URL}?${{ inputs.coolify_deploy_webhook_query }}"; fi
+          fi
+          CURL_ARGS=(-fsS --connect-timeout 20 --max-time 180 --retry 4 --retry-delay 5 --retry-all-errors --request "${{ inputs.coolify_deploy_method }}")
+          if [[ "${{ inputs.coolify_skip_tls_verify }}" == "true" ]]; then CURL_ARGS+=(--insecure); fi
+          curl "${CURL_ARGS[@]}" "$URL" --header "Authorization: Bearer ${COOLIFY_TOKEN}"
