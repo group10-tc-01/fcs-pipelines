@@ -94,7 +94,7 @@ on:
       coolify_image_payload:
         description: JSON payload template. __IMAGE_URI__, __IMAGE_TAG__, and __IMAGE_NAME__ are replaced before the request.
         type: string
-        default: '{"docker_registry_image_name":"__IMAGE_URI__"}'
+        default: '{"docker_registry_image_name":"__IMAGE_NAME__","docker_registry_image_tag":"__IMAGE_TAG__"}'
       coolify_trigger_deploy:
         description: Trigger Coolify deployment after updating the image.
         type: boolean
