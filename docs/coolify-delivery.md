@@ -18,6 +18,16 @@ Inputs normalmente usados pelos wrappers:
 - `coolify_resource_uuid: ${{ vars.COOLIFY_RESOURCE_UUID }}`.
 - `source_ref: ${{ github.event.workflow_run.head_sha }}` quando acionado por `workflow_run`.
 
+Por padrao, o PATCH envia o nome e a tag em campos separados, compativeis com
+aplicacoes Docker Image do Coolify:
+
+```json
+{
+  "docker_registry_image_name": "__IMAGE_NAME__",
+  "docker_registry_image_tag": "__IMAGE_TAG__"
+}
+```
+
 O workflow publica a tag `sha-<commit-curto>`. O Coolify deve estar configurado
 como aplicacao de Docker Image e ter permissao para baixar a imagem privada do GHCR.
 
@@ -25,17 +35,17 @@ como aplicacao de Docker Image e ter permissao para baixar a imagem privada do G
 
 Crie as seguintes variables de repositorio ou do environment de producao:
 
-| Nome | Finalidade |
-| --- | --- |
-| `COOLIFY_BASE_URL` | URL base do Coolify, por exemplo `https://coolify.example.com`. |
-| `COOLIFY_RESOURCE_UUID` | UUID da aplicacao Docker Image no Coolify. |
+| Nome                    | Finalidade                                                      |
+| ----------------------- | --------------------------------------------------------------- |
+| `COOLIFY_BASE_URL`      | URL base do Coolify, por exemplo `https://coolify.example.com`. |
+| `COOLIFY_RESOURCE_UUID` | UUID da aplicacao Docker Image no Coolify.                      |
 
 Crie os seguintes secrets no mesmo escopo:
 
-| Nome | Finalidade |
-| --- | --- |
-| `COOLIFY_TOKEN` | Token de API do Coolify com permissao para atualizar a aplicacao. |
-| `COOLIFY_WEBHOOK` | Webhook de deploy gerado pelo recurso Coolify. |
+| Nome              | Finalidade                                                        |
+| ----------------- | ----------------------------------------------------------------- |
+| `COOLIFY_TOKEN`   | Token de API do Coolify com permissao para atualizar a aplicacao. |
+| `COOLIFY_WEBHOOK` | Webhook de deploy gerado pelo recurso Coolify.                    |
 
 Para GHCR, o workflow usa o `GITHUB_TOKEN` e exige `packages: write`. Registros
 que nao sejam GHCR exigem tambem `REGISTRY_USERNAME` e `REGISTRY_TOKEN`.
