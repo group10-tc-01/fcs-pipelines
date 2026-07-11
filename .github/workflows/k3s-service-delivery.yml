@@ -63,11 +63,11 @@ jobs:
           echo "KUBECONFIG=$kubeconfig_path" >> "$GITHUB_ENV"
 
       - name: Install kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       - name: Checkout service repository
         if: ${{ inputs.k8s_manifest_path != '' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.source_ref }}
 

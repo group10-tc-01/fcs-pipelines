@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout GitOps repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ inputs.gitops_repository }}
           ref: ${{ inputs.gitops_ref }}
@@ -60,7 +60,7 @@ jobs:
           path: gitops
 
       - name: Setup kustomize
-        uses: imranismail/setup-kustomize@v2
+        uses: imranismail/setup-kustomize@v3
 
       - name: Update image
         working-directory: gitops/${{ inputs.working_directory }}
