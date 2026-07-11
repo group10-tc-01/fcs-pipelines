@@ -1,0 +1,84 @@
+name: Reusable K3s Service Delivery
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        type: string
+        required: true
+      image_repository:
+        description: Full GHCR image repository without tag.
+        type: string
+        required: true
+      source_ref:
+        description: Commit SHA whose sha-<short-sha> image was published by CI.
+        type: string
+        required: true
+      k8s_namespace:
+        type: string
+        required: true
+      k8s_deployment_name:
+        type: string
+        required: true
+      k8s_container_name:
+        type: string
+        required: true
+      healthcheck_url:
+        type: string
+        default: ""
+      timeout_seconds:
+        type: number
+        default: 300
+      environment:
+        type: string
+        default: production
+    secrets:
+      K3S_KUBECONFIG:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k3s-${{ inputs.environment }}-${{ inputs.service_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      KUBECONFIG: ${{ runner.temp }}/kubeconfig
+    steps:
+      - name: Configure kubeconfig
+        shell: bash
+        env:
+          K3S_KUBECONFIG: ${{ secrets.K3S_KUBECONFIG }}
+        run: |
+          printf '%s' "$K3S_KUBECONFIG" > "$KUBECONFIG"
+          chmod 600 "$KUBECONFIG"
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Verify restricted cluster access
+        shell: bash
+        run: kubectl get namespace "${{ inputs.k8s_namespace }}"
+
+      - name: Update immutable image and wait for rollout
+        shell: bash
+        run: |
+          short_sha="${{ inputs.source_ref }}"
+          short_sha="${short_sha:0:7}"
+          image="${{ inputs.image_repository }}:sha-${short_sha}"
+          kubectl -n "${{ inputs.k8s_namespace }}" set image \
+            "deployment/${{ inputs.k8s_deployment_name }}" \
+            "${{ inputs.k8s_container_name }}=${image}"
+          kubectl -n "${{ inputs.k8s_namespace }}" rollout status \
+            "deployment/${{ inputs.k8s_deployment_name }}" \
+            --timeout="${{ inputs.timeout_seconds }}s"
+
+      - name: Verify external healthcheck
+        if: ${{ inputs.healthcheck_url != '' }}
+        shell: bash
+        run: curl --fail --retry 10 --retry-delay 10 --retry-all-errors "${{ inputs.healthcheck_url }}"
