@@ -23,6 +23,10 @@ on:
       k8s_container_name:
         type: string
         required: true
+      k8s_manifest_path:
+        description: Optional service-owned manifest to apply before rollout.
+        type: string
+        default: ""
       healthcheck_url:
         type: string
         default: ""
@@ -60,6 +64,24 @@ jobs:
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
+
+      - name: Checkout service repository
+        if: ${{ inputs.k8s_manifest_path != '' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Apply service deployment manifest
+        if: ${{ inputs.k8s_manifest_path != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_path="${{ inputs.k8s_manifest_path }}"
+          test -f "$manifest_path" || {
+            echo "Kubernetes manifest not found: $manifest_path" >&2
+            exit 1
+          }
+          kubectl -n "${{ inputs.k8s_namespace }}" apply -f "$manifest_path"
 
       - name: Verify restricted service access
         shell: bash
