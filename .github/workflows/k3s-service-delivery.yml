@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, fcs-vps]
     environment: ${{ inputs.environment }}
     steps:
       - name: Configure kubeconfig
@@ -73,9 +73,15 @@ jobs:
           short_sha="${{ inputs.source_ref }}"
           short_sha="${short_sha:0:7}"
           image="${{ inputs.image_repository }}:sha-${short_sha}"
-          kubectl -n "${{ inputs.k8s_namespace }}" set image \
+          deployed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          patch=$(cat <<EOF
+          {"spec":{"template":{"metadata":{"annotations":{"fcs.platform/deployed-at":"${deployed_at}","fcs.platform/source-sha":"${{ inputs.source_ref }}","fcs.platform/image":"${image}","fcs.platform/github-run-id":"${{ github.run_id }}"}},"spec":{"containers":[{"name":"${{ inputs.k8s_container_name }}","image":"${image}"}]}}}}
+          EOF
+          )
+          kubectl -n "${{ inputs.k8s_namespace }}" patch \
             "deployment/${{ inputs.k8s_deployment_name }}" \
-            "${{ inputs.k8s_container_name }}=${image}"
+            --type=strategic \
+            --patch "$patch"
           kubectl -n "${{ inputs.k8s_namespace }}" rollout status \
             "deployment/${{ inputs.k8s_deployment_name }}" \
             --timeout="${{ inputs.timeout_seconds }}s"
