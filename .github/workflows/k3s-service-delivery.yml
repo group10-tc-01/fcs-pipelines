@@ -47,23 +47,25 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    env:
-      KUBECONFIG: ${{ runner.temp }}/kubeconfig
     steps:
       - name: Configure kubeconfig
         shell: bash
         env:
           K3S_KUBECONFIG: ${{ secrets.K3S_KUBECONFIG }}
         run: |
-          printf '%s' "$K3S_KUBECONFIG" > "$KUBECONFIG"
-          chmod 600 "$KUBECONFIG"
+          kubeconfig_path="${RUNNER_TEMP}/kubeconfig"
+          printf '%s' "$K3S_KUBECONFIG" > "$kubeconfig_path"
+          chmod 600 "$kubeconfig_path"
+          echo "KUBECONFIG=$kubeconfig_path" >> "$GITHUB_ENV"
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Verify restricted cluster access
+      - name: Verify restricted service access
         shell: bash
-        run: kubectl get namespace "${{ inputs.k8s_namespace }}"
+        run: |
+          kubectl -n "${{ inputs.k8s_namespace }}" get \
+            "deployment/${{ inputs.k8s_deployment_name }}"
 
       - name: Update immutable image and wait for rollout
         shell: bash
