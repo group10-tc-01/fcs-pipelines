@@ -21,6 +21,10 @@ Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária
 
 Este repositório **não** contém código de aplicação. Cada aplicação mantém apenas wrappers pequenos em `.github/workflows` apontando para os workflows reutilizáveis daqui.
 
+## Compatibilidade dos runners
+
+Os workflows usam actions executadas em Node.js 24. GitHub-hosted runners já atendem esse requisito. O runner self-hosted `fcs-vps`, usado pelo workflow de delivery K3s, deve permanecer na versão `2.327.1` ou superior.
+
 Documentação completa da arquitetura: [group10-tc-01/fcs-fase05-docs](https://github.com/group10-tc-01/fcs-fase05-docs).
 
 Referências diretas:
