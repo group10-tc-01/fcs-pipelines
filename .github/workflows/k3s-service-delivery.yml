@@ -90,6 +90,7 @@ jobs:
             -N -L 6443:127.0.0.1:6443 "${{ inputs.vps_deploy_user }}@${{ inputs.vps_host }}" \
             </dev/null >"${RUNNER_TEMP}/fcs-k3s-tunnel.log" 2>&1 &
           echo $! > "${RUNNER_TEMP}/fcs-k3s-tunnel.pid"
+          export KUBECONFIG="$kubeconfig_path"
           echo "KUBECONFIG=$kubeconfig_path" >> "$GITHUB_ENV"
           for _ in $(seq 1 30); do
             if ! kill -0 "$(cat "${RUNNER_TEMP}/fcs-k3s-tunnel.pid")" 2>/dev/null; then
