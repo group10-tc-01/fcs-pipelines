@@ -24,9 +24,21 @@ on:
         type: string
         required: true
       k8s_manifest_path:
-        description: Optional service-owned manifest to apply before rollout.
+        description: Optional service-owned manifest file or Kustomize directory to apply before rollout.
         type: string
         default: ""
+      k8s_apply_mode:
+        description: Apply a single manifest file or a Kustomize directory.
+        type: string
+        default: manifest
+      vps_host:
+        description: VPS hostname or public IP used for the private K3s SSH tunnel.
+        type: string
+        required: true
+      vps_deploy_user:
+        description: SSH user that can read the K3s kubeconfig.
+        type: string
+        required: true
       healthcheck_url:
         type: string
         default: ""
@@ -39,6 +51,10 @@ on:
     secrets:
       K3S_KUBECONFIG:
         required: true
+      VPS_DEPLOY_SSH_KEY:
+        required: true
+      VPS_KNOWN_HOSTS:
+        required: true
 
 permissions:
   contents: read
@@ -49,21 +65,35 @@ concurrency:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, linux, x64, fcs-vps]
+    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - name: Configure kubeconfig
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v5
+
+      - name: Configure private Kubernetes access
         shell: bash
         env:
           K3S_KUBECONFIG: ${{ secrets.K3S_KUBECONFIG }}
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
-          kubeconfig_path="${RUNNER_TEMP}/kubeconfig"
+          set -euo pipefail
+          install -d -m 0700 "$HOME/.ssh" "${RUNNER_TEMP}/kube"
+          printf '%s\n' "$VPS_DEPLOY_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          kubeconfig_path="${RUNNER_TEMP}/kube/config"
           printf '%s' "$K3S_KUBECONFIG" > "$kubeconfig_path"
-          chmod 600 "$kubeconfig_path"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts" "$kubeconfig_path"
+          ssh -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            -N -L 6443:127.0.0.1:6443 "${{ inputs.vps_deploy_user }}@${{ inputs.vps_host }}" &
+          echo $! > "${RUNNER_TEMP}/fcs-k3s-tunnel.pid"
           echo "KUBECONFIG=$kubeconfig_path" >> "$GITHUB_ENV"
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v5
+          for _ in $(seq 1 30); do
+            kubectl get nodes >/dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          exit 1
 
       - name: Checkout service repository
         if: ${{ inputs.k8s_manifest_path != '' }}
@@ -71,17 +101,26 @@ jobs:
         with:
           ref: ${{ inputs.source_ref }}
 
-      - name: Apply service deployment manifest
+      - name: Apply service Kubernetes resources
         if: ${{ inputs.k8s_manifest_path != '' }}
         shell: bash
         run: |
           set -euo pipefail
           manifest_path="${{ inputs.k8s_manifest_path }}"
-          test -f "$manifest_path" || {
-            echo "Kubernetes manifest not found: $manifest_path" >&2
-            exit 1
-          }
-          kubectl -n "${{ inputs.k8s_namespace }}" apply -f "$manifest_path"
+          case "${{ inputs.k8s_apply_mode }}" in
+            manifest)
+              test -f "$manifest_path" || { echo "Kubernetes manifest not found: $manifest_path" >&2; exit 1; }
+              kubectl -n "${{ inputs.k8s_namespace }}" apply -f "$manifest_path"
+              ;;
+            kustomize)
+              test -d "$manifest_path" || { echo "Kustomize directory not found: $manifest_path" >&2; exit 1; }
+              kubectl apply -k "$manifest_path"
+              ;;
+            *)
+              echo "Unsupported k8s_apply_mode: ${{ inputs.k8s_apply_mode }}" >&2
+              exit 1
+              ;;
+          esac
 
       - name: Verify restricted service access
         shell: bash
@@ -112,3 +151,9 @@ jobs:
         if: ${{ inputs.healthcheck_url != '' }}
         shell: bash
         run: curl --fail --retry 10 --retry-delay 10 --retry-all-errors "${{ inputs.healthcheck_url }}"
+
+      - name: Close private Kubernetes tunnel
+        if: always()
+        shell: bash
+        run: |
+          test -f "${RUNNER_TEMP}/fcs-k3s-tunnel.pid" && kill "$(cat "${RUNNER_TEMP}/fcs-k3s-tunnel.pid")" || true
