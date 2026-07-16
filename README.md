@@ -1,8 +1,8 @@
 # fcs-pipelines
 
-Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária**. Centraliza workflows do GitHub Actions para CI, validações de segurança, build de imagens, delivery em AKS e automação de infraestrutura.
+Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária**. Centraliza workflows do GitHub Actions para CI, validações de segurança, build de imagens, delivery no K3s e automação de infraestrutura.
 
-> Repositório de apoio que compõe a arquitetura da Conexão Solidária junto a `fcs-identity`, `fcs-campaigns`, `fcs-donations`, `fcs-donation-worker`, `fcs-audit-logs`, `fcs-solidarity-web` e `fcs-solidarity-infra`.
+> Repositório de apoio que compõe a arquitetura da Conexão Solidária junto a `fcs-identity`, `fcs-campaign`, `fcs-donations`, `fcs-donation-worker`, `fcs-audit-logs`, `fcs-bff`, `fcs-web` e `fcs-infra`.
 
 ---
 
@@ -16,8 +16,8 @@ Repositório de **Pipelines Reutilizáveis** da plataforma **Conexão Solidária
 - Executar build, testes, cobertura e SonarCloud para serviços .NET.
 - Executar formatação, lint, testes, cobertura e build para aplicações Angular.
 - Validar build de imagens Docker.
-- Publicar imagens no Azure Container Registry e executar deploy no AKS quando habilitado.
-- Executar workflows de Terraform para infraestrutura Azure.
+- Publicar imagens no GHCR e executar deploy no K3s.
+- Executar workflows de Terraform para a infraestrutura da VPS.
 
 Este repositório **não** contém código de aplicação. Cada aplicação mantém apenas wrappers pequenos em `.github/workflows` apontando para os workflows reutilizáveis daqui.
 
@@ -31,20 +31,28 @@ Referências diretas:
 
 - [Visão geral da arquitetura](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/architecture/overview.md)
 - [Repositórios e infraestrutura](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/architecture/repositories-and-infra.md)
-- [ADR 0022 - Reutilizar fcs-pipelines para CI/CD](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0022-reuse-fcs-pipelines-for-ci-cd.md)
+- [ADR 0018 - Reutilizar fcs-pipelines para CI/CD](https://github.com/group10-tc-01/fcs-fase05-docs/blob/main/adr/0018-reuse-fcs-pipelines-for-ci-cd.md)
 
 ---
 
 ## Workflows reutilizáveis
 
+```mermaid
+flowchart LR
+    App[Aplicação] --> CI[Workflow reutilizável de CI]
+    CI --> GHCR[Imagem GHCR]
+    GHCR --> Delivery[Workflow de delivery]
+    Delivery --> K3s[VPS / K3s]
+```
+
 | Workflow                                        | Finalidade                                                                                                                 |
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `.github/workflows/branch-name-check.yml`       | Política reutilizável para validação do nome das branches.                                                                 |
 | `.github/workflows/dotnet-service-ci.yml`       | Build, testes, cobertura, análise de dependências, secret scan, SonarCloud e validação de build Docker para serviços .NET. |
-| `.github/workflows/dotnet-service-delivery.yml` | Build, scan, push da imagem Docker para o Azure Container Registry e deploy no AKS com rolling update.                     |
+| `.github/workflows/dotnet-service-delivery.yml` | Build, scan, push da imagem Docker para o GHCR e deploy no K3s com rolling update.                                         |
 | `.github/workflows/angular-web-ci.yml`          | CI para aplicações Angular com npm audit, formatação, lint, testes, cobertura, build e validação de build Docker.          |
 | `.github/workflows/gitops-image-update.yml`     | Atualização de tags de imagem em um repositório GitOps para que Argo CD ou Flux faça a reconciliação do cluster.           |
-| `.github/workflows/terraform-azure.yml`         | Execução de plan e, opcionalmente, apply da infraestrutura Azure com Terraform usando OIDC.                                |
+| `.github/workflows/terraform-azure.yml`         | Execução de plan e, opcionalmente, apply da infraestrutura VPS com Terraform.                                               |
 
 ---
 
@@ -135,7 +143,7 @@ jobs:
   ci:
     uses: group10-tc-01/fcs-pipelines/.github/workflows/angular-web-ci.yml@main
     with:
-      app_name: fcs-solidarity-web
+      app_name: fcs-web
       node_version: "24"
       working_directory: .
       coverage_threshold: 80
@@ -143,27 +151,3 @@ jobs:
       dockerfile_path: Dockerfile
       docker_context: .
 ```
-
----
-
-## Segurança
-
-- Segredos não devem ser versionados nos repositórios de aplicação nem neste repositório.
-- Secret scan é executado com Gitleaks.
-- Dependências .NET são verificadas com `dotnet list package --vulnerable`.
-- Dependências Angular são verificadas com `npm audit --audit-level=high`.
-- Imagens Docker são escaneadas com Trivy nos fluxos de delivery.
-- Credenciais Azure devem usar OIDC ou secrets protegidos por GitHub Environments.
-
-Consulte [docs/required-secrets-and-vars.md](docs/required-secrets-and-vars.md) para o contrato de secrets e variáveis.
-
----
-
-## Guia de adoção
-
-O passo a passo completo está em [docs/adoption-guide.md](docs/adoption-guide.md).
-
-Exemplos úteis:
-
-- [examples/catalog/](examples/catalog/)
-- [examples/solidarity-web-ci.yml](examples/solidarity-web-ci.yml)
