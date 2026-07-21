@@ -1,0 +1,6 @@
+site_name: FCS Pipelines
+site_description: Documentação dos workflows reutilizáveis da Conexão Solidária.
+nav:
+  - Início: index.md
+plugins:
+  - techdocs-core

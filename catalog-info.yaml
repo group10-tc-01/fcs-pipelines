@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: fcs-pipelines
+  title: FCS Pipelines
+  description: Workflows reutilizáveis de CI e delivery da Conexão Solidária.
+  annotations:
+    github.com/project-slug: group10-tc-01/fcs-pipelines
+    backstage.io/techdocs-ref: dir:.
+  links:
+    - title: GitHub Actions
+      url: https://github.com/group10-tc-01/fcs-pipelines/actions
+spec:
+  type: library
+  lifecycle: production
+  owner: group:default/fcs-team
+  system: conexao-solidaria
